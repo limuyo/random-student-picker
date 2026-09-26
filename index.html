@@ -104,8 +104,15 @@
       <section class="setup-wall">
         <div class="setup-wall-head">
           <h3>头像墙</h3>
-          <span id="wall-summary" class="hint">每次点名会随机换一批头像</span>
+          <div class="wall-head-right">
+            <div class="seg" id="avatar-mode-seg" role="group" aria-label="头像模式">
+              <button type="button" data-amode="random" class="on">随机英雄</button>
+              <button type="button" data-amode="fixed">指定英雄</button>
+            </div>
+            <button type="button" id="btn-reshuffle" class="btn small" hidden>重新随机分配</button>
+          </div>
         </div>
+        <p id="wall-summary" class="wall-hint"></p>
         <div id="wall" class="wall"></div>
         <p id="wall-empty" class="wall-empty" hidden>保存名单后，全班头像会出现在这里</p>
       </section>
@@ -134,6 +141,20 @@
         <button type="button" id="modal-ok" class="btn primary">确定</button>
       </div>
     </div>
+  </div>
+
+  <!-- ============ 英雄选择器（指定模式：点击头像墙中的同学更换） ============ -->
+  <div id="hero-picker" class="hero-picker" hidden>
+    <header class="hero-picker-head">
+      <h2 id="hero-picker-title">选择英雄</h2>
+      <label class="btn small">
+        上传自定义头像
+        <input type="file" id="hero-upload" accept="image/*" hidden>
+      </label>
+      <button type="button" id="hero-picker-close" class="icon-btn" aria-label="关闭选择器">✕</button>
+    </header>
+    <p class="hero-picker-hint">点击下方任意英雄设为该同学的专属头像；也可以上传本地图片（自动裁剪压缩为 256×256）</p>
+    <div id="hero-grid" class="hero-grid"></div>
   </div>
 
   <div id="toast" class="toast" role="status"></div>

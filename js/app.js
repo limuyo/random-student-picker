@@ -37,13 +37,14 @@
   }
 
   /* ---- 设置（持久化） ---- */
-  var settings = { mode: 'single', count: 3, noRepeat: false, sound: true };
+  var settings = { mode: 'single', count: 3, noRepeat: false, sound: true, avatarMode: 'random' };
   try {
     var saved = JSON.parse(localStorage.getItem('heroRoll.settings.v1') || '{}');
     if (saved.mode === 'multi' || saved.mode === 'single') settings.mode = saved.mode;
     if (saved.count >= 2 && saved.count <= 5) settings.count = saved.count;
     if (typeof saved.noRepeat === 'boolean') settings.noRepeat = saved.noRepeat;
     if (typeof saved.sound === 'boolean') settings.sound = saved.sound;
+    if (saved.avatarMode === 'fixed' || saved.avatarMode === 'random') settings.avatarMode = saved.avatarMode;
   } catch (e) { /* 忽略 */ }
   function saveSettings() {
     try { localStorage.setItem('heroRoll.settings.v1', JSON.stringify(settings)); } catch (e) { /* 忽略 */ }
@@ -70,13 +71,54 @@
 
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* ---- 头像分配：每次点名随机换一批 ---- */
+  /* ---- 头像分配 ----
+     随机模式：每次点名随机换一批；
+     指定英雄模式：每人固定专属头像（可点选更换 / 上传图片），分配持久化 */
   function repickAvatars() {
     var pool = (window.AVATARS && window.AVATARS.length) ? window.AVATARS.slice() : [''];
     shuffle(pool);
     state.students.forEach(function (s, i) {
       avatarByKey[s.key] = pool[i % pool.length];
     });
+  }
+
+  var assigned = {}; /* key -> 头像（AVATARS 路径或上传的 data URI） */
+  try {
+    var savedAssigned = JSON.parse(localStorage.getItem('heroRoll.assigned.v1') || '{}');
+    if (savedAssigned && typeof savedAssigned === 'object') assigned = savedAssigned;
+  } catch (e) { /* 忽略 */ }
+
+  function saveAssigned() {
+    try {
+      localStorage.setItem('heroRoll.assigned.v1', JSON.stringify(assigned));
+      return true;
+    } catch (e) {
+      toast('本地存储空间不足，头像没有保存下来');
+      return false;
+    }
+  }
+
+  function ensureAssignments() {
+    var avatars = window.AVATARS || [];
+    if (!avatars.length) return;
+    var missing = state.students.filter(function (s) { return !assigned[s.key]; });
+    if (!missing.length) return;
+    var start = Math.floor(Math.random() * avatars.length);
+    missing.forEach(function (s, i) {
+      assigned[s.key] = avatars[(start + i) % avatars.length];
+    });
+    saveAssigned();
+  }
+
+  function syncAvatars() {
+    if (settings.avatarMode === 'fixed') {
+      ensureAssignments();
+      state.students.forEach(function (s) {
+        avatarByKey[s.key] = assigned[s.key];
+      });
+    } else {
+      repickAvatars();
+    }
   }
 
   function itemsOf(list) {
@@ -143,8 +185,10 @@
     var empty = !state.students.length;
     $('wall-empty').hidden = !empty;
     $('wall-summary').textContent = empty
-      ? '每次点名会随机换一批头像'
-      : state.students.length + ' 名同学 · 每次点名随机换头像';
+      ? '保存名单后，全班头像会出现在这里'
+      : state.students.length + ' 名同学 · ' + (settings.avatarMode === 'fixed'
+          ? '每人固定专属英雄，点击头像可更换或上传图片'
+          : '每次点名随机换一批头像');
     if (empty) { $('wall').innerHTML = ''; return; }
     Wall.build(itemsOf(state.students));
     applyCalledVisual();
@@ -278,7 +322,7 @@
     state.called = {};
     state.lastWinners = [];
     saveCalled();
-    repickAvatars();
+    syncAvatars();
     rebuildWall();
     updateSummary();
     updateEmpty();
@@ -425,7 +469,7 @@
     state.rolling = true;
     setRollingUi(true);
     clearTray();
-    repickAvatars(); /* 每轮随机换一批头像 */
+    if (settings.avatarMode === 'random') repickAvatars(); /* 随机模式每轮换头像；指定模式保留专属英雄 */
     if (settings.mode === 'single') showScreenLine();
 
     /* 面板收起时先丝滑展开（配一声 whoosh），再开抽 */
@@ -576,6 +620,121 @@
       .then(function (ok) { if (ok) resetRound(true); });
   });
 
+  /* ---- 头像模式：随机英雄 / 指定英雄 ---- */
+  function syncAvatarModeUi() {
+    var buttons = $('avatar-mode-seg').querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].classList.toggle('on', buttons[i].dataset.amode === settings.avatarMode);
+    }
+    $('btn-reshuffle').hidden = settings.avatarMode !== 'fixed';
+    $('wall').classList.toggle('assign-mode', settings.avatarMode === 'fixed');
+  }
+
+  $('avatar-mode-seg').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-amode]');
+    if (!btn || btn.dataset.amode === settings.avatarMode) return;
+    settings.avatarMode = btn.dataset.amode;
+    saveSettings();
+    syncAvatarModeUi();
+    if (settings.avatarMode === 'fixed') ensureAssignments();
+    syncAvatars();
+    rebuildWall();
+    toast(settings.avatarMode === 'fixed'
+      ? '指定英雄模式：每人固定专属头像，点击头像可更换'
+      : '随机英雄模式：每次点名随机换一批头像');
+  });
+
+  $('btn-reshuffle').addEventListener('click', function () {
+    if (settings.avatarMode !== 'fixed' || !state.students.length) return;
+    var pool = (window.AVATARS || []).slice();
+    shuffle(pool);
+    state.students.forEach(function (s, i) {
+      assigned[s.key] = pool[i % pool.length];
+    });
+    saveAssigned();
+    syncAvatars();
+    rebuildWall();
+    toast('已为全班重新随机分配英雄');
+  });
+
+  /* ---- 英雄选择器 / 自定义上传（指定模式） ---- */
+  var pickingKey = null;
+
+  function assignAvatar(key, src) {
+    assigned[key] = src;
+    saveAssigned();
+    avatarByKey[key] = src;
+    if (typeof Wall.updateAvatar === 'function') Wall.updateAvatar(key, src);
+    toast('已更新「' + (byKey[key] ? byKey[key].name : key) + '」的头像');
+  }
+
+  function closeHeroPicker() {
+    $('hero-picker').hidden = true;
+    pickingKey = null;
+  }
+
+  $('wall').addEventListener('click', function (e) {
+    if (settings.avatarMode !== 'fixed' || state.rolling) return;
+    var card = e.target.closest('.card');
+    if (!card || !card.dataset.key) return;
+    pickingKey = card.dataset.key;
+    if (!byKey[pickingKey]) { pickingKey = null; return; }
+    $('hero-picker-title').textContent = '为「' + byKey[pickingKey].name + '」选择英雄';
+    var grid = $('hero-grid');
+    grid.innerHTML = '';
+    var avatars = window.AVATARS || [];
+    avatars.forEach(function (src, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'hero-cell' + (src === assigned[pickingKey] ? ' on' : '');
+      b.title = '英雄 ' + (i + 1);
+      var img = document.createElement('img');
+      img.src = src;
+      img.alt = '';
+      img.loading = 'lazy';
+      b.appendChild(img);
+      b.addEventListener('click', function () {
+        var key = pickingKey;
+        assignAvatar(key, src);
+        closeHeroPicker();
+      });
+      grid.appendChild(b);
+    });
+    $('hero-picker').hidden = false;
+  });
+
+  $('hero-picker-close').addEventListener('click', closeHeroPicker);
+  $('hero-picker').addEventListener('click', function (e) {
+    if (e.target === $('hero-picker')) closeHeroPicker();
+  });
+
+  /* 上传自定义头像：读为 data URI，中心裁剪压缩到 256×256 后存为本机专属头像 */
+  $('hero-upload').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file || !pickingKey) return;
+    var key = pickingKey;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var size = 256;
+        var canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        var scale = Math.max(size / img.width, size / img.height);
+        var w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        assignAvatar(key, canvas.toDataURL('image/jpeg', 0.86));
+        closeHeroPicker();
+      };
+      img.onerror = function () { toast('图片读取失败，请换一张试试'); };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
   /* ---- 历史记录抽屉 ---- */
   function fmtTime(t) {
     var d = new Date(t);
@@ -628,6 +787,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     if (!$('history-panel').hidden) { closeHistory(); return; }
+    if (!$('hero-picker').hidden) { closeHeroPicker(); return; }
     if (setupOpen()) closeSetup();
   });
 
@@ -686,8 +846,9 @@
   $('opt-sound').checked = settings.sound;
   Sfx.setEnabled(settings.sound);
   syncModeUi();
+  syncAvatarModeUi();
   loadCalled();
-  repickAvatars();
+  syncAvatars();
   updateSummary();
   updateEmpty();
 

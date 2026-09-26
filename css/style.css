@@ -506,12 +506,15 @@ textarea:focus { outline: none; border-color: var(--gold-2); box-shadow: 0 0 0 3
 .setup-wall { flex: none; }
 .setup-wall-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: 2px 2px 10px;
+  margin: 2px 2px 8px;
+  flex-wrap: wrap;
 }
 .setup-wall-head h3 { margin: 0; font-size: 14px; font-weight: 700; }
+.wall-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wall-hint { margin: 0 2px 10px; color: var(--ink-2); font-size: 12.5px; }
 
 .wall {
   display: grid;
@@ -572,6 +575,62 @@ textarea:focus { outline: none; border-color: var(--gold-2); box-shadow: 0 0 0 3
 .card.winner.called { filter: none; opacity: 1; }
 
 .wall-empty { color: var(--ink-3); font-size: 13px; text-align: center; margin: 4px 0 0; }
+
+/* 指定英雄模式：头像可点选更换 */
+.wall.assign-mode .card { cursor: pointer; }
+.wall.assign-mode .card:hover { border-color: var(--gold-2); }
+
+/* --------------------------------------------------------------------------
+   英雄选择器（指定英雄模式）
+   -------------------------------------------------------------------------- */
+
+.hero-picker {
+  position: absolute;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  animation: modalIn 0.22s cubic-bezier(0.2, 1.1, 0.3, 1) both;
+}
+.hero-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.hero-picker-head h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 700; }
+.hero-picker-hint { margin: 10px 18px 0; color: var(--ink-2); font-size: 12.5px; }
+.hero-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+  padding: 14px 18px 24px;
+}
+.hero-cell {
+  appearance: none;
+  border: 1px solid var(--hairline-soft);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 5px;
+  cursor: pointer;
+  transition: transform 100ms ease-out, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.hero-cell:hover { border-color: var(--gold-2); transform: translateY(-1px); }
+.hero-cell:active { transform: scale(0.96); }
+.hero-cell.on { border-color: var(--gold-2); box-shadow: 0 0 0 2px var(--gold-2); }
+.hero-cell img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  background: var(--surface-3);
+}
 
 /* --------------------------------------------------------------------------
    历史记录抽屉

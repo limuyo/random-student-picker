@@ -56,6 +56,13 @@ window.Wall = (function () {
     if (card) card.classList.add('winner');
   }
 
+  /* 更新某个学生的头像图片（指定英雄模式点选/上传后调用） */
+  function updateAvatar(key, src) {
+    var card = cards[key];
+    var img = card && card.querySelector('.avatar');
+    if (img) img.src = src;
+  }
+
   function clearMarks() {
     var marked = el.querySelectorAll('.card.winner');
     for (var i = 0; i < marked.length; i++) marked[i].classList.remove('winner');
@@ -76,6 +83,7 @@ window.Wall = (function () {
   return {
     build: build,
     spotlight: spotlight,
+    updateAvatar: updateAvatar,
     clearMarks: clearMarks,
     markCalled: markCalled,
     unmarkAll: unmarkAll
