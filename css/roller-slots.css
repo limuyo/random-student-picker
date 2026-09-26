@@ -1,0 +1,180 @@
+/* ==========================================================================
+   老虎机滚轮抽取组件（SlotRoller）· 样式
+   配合 js/roller-slots.js 使用，所有类名带 sr- 前缀，不污染主样式。
+   视觉跟随主程序浅色苹果风：白底白卡、发丝边框、金色赔付线。
+   动画只动 transform / opacity / filter；blur 只加在滚轮内容层。
+   ========================================================================== */
+
+.sr-root {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  /* reduced 模式整块淡入用；平时 opacity 恒为 1，无副作用 */
+  transition: opacity 0.26s ease;
+}
+
+.sr-root.sr-enter { opacity: 0; }
+
+/* 舞台：滚轮排 + 横贯其上的赔付线 */
+.sr-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.sr-reels {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+
+/* 单个滚轮：白底、发丝边框、圆角，内容溢出隐藏，高度撑满容器 */
+.sr-reel {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 76px;
+  max-width: 132px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 24px -18px rgba(0, 0, 0, 0.18);
+}
+
+/* 滚轮内容层：条目竖排；滚动时只改 transform / filter */
+.sr-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  will-change: transform;
+}
+
+/* 条目：头像 + 姓名 + 学号；高 94px 固定（含边框），节距由 JS 实测 */
+.sr-cell {
+  flex: 0 0 auto;
+  height: 94px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 8px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: transform 0.16s ease-out, box-shadow 0.16s ease-out,
+    border-color 0.16s ease-out, opacity 0.24s ease;
+}
+
+.sr-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #f5f5f7;
+}
+
+.sr-name {
+  margin-top: 2px;
+  max-width: 100%;
+  font-size: 12.5px;
+  line-height: 14px;
+  font-weight: 700;
+  color: #1d1d1f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sr-sid {
+  margin-top: 1px;
+  font-size: 10px;
+  line-height: 11px;
+  color: #aeaeb2;
+}
+
+/* 定格：中项头像丝滑放大 1.12（back-out 回弹）+ 金环呼吸一次；z-index 抬升压住相邻格 */
+.sr-cell.sr-win {
+  border-color: #c9a04a;
+  box-shadow: 0 0 0 1px #c9a04a, 0 10px 22px -12px rgba(201, 160, 74, 0.6);
+  transform: scale(1.12);
+  z-index: 2;
+  position: relative;
+  transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.16s ease-out, border-color 0.16s ease-out, opacity 0.24s ease;
+  animation: srRingBreathe 900ms ease-out;
+}
+
+@keyframes srRingBreathe {
+  0% {
+    box-shadow: 0 0 0 1px rgba(201, 160, 74, 0.9), 0 0 0 0 rgba(201, 160, 74, 0.35),
+      0 10px 22px -12px rgba(201, 160, 74, 0.6);
+  }
+  45% {
+    box-shadow: 0 0 0 1px #c9a04a, 0 0 0 9px rgba(201, 160, 74, 0),
+      0 14px 30px -12px rgba(201, 160, 74, 0.72);
+  }
+  100% {
+    box-shadow: 0 0 0 1px #c9a04a, 0 0 0 0 rgba(201, 160, 74, 0),
+      0 10px 22px -12px rgba(201, 160, 74, 0.6);
+  }
+}
+
+/* 全部定格后压暗非中奖项 */
+.sr-strip.sr-dim .sr-cell:not(.sr-win) { opacity: 0.45; }
+
+/* 滚轮上下白色渐隐遮罩：条目从雾里滚入 / 滚出（不加 blur） */
+.sr-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 22%;
+  min-height: 30px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sr-fade-top { top: 0; background: linear-gradient(180deg, #fff 10%, rgba(255, 255, 255, 0)); }
+
+.sr-fade-bottom { bottom: 0; background: linear-gradient(0deg, #fff 10%, rgba(255, 255, 255, 0)); }
+
+/* 赔付线：金色 2px 横贯所有滚轮垂直中央，两端各一枚小圆点 */
+.sr-payline {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: #c9a04a;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.sr-payline::before,
+.sr-payline::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: #c9a04a;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.sr-payline::before { left: -3px; }
+
+.sr-payline::after { right: -3px; }

@@ -1,0 +1,218 @@
+/* ==========================================================================
+   StripRoller · CS:GO 开箱式横向滚动抽取组件样式（配套 js/roller-strip.js）
+   结构：.rs-root（填满调用方容器）
+     ├─ .rs-track   纸带（JS 每帧只改它的 transform / filter / opacity）
+     ├─ .rs-halo    准线后的白色光晕（垫层，让金线像浮在纸带上）
+     ├─ .rs-fade    左右白色渐隐遮罩（条目从雾里流出、消失在雾里）
+     └─ .rs-line    金色准线（2px，上下两端小三角）
+   注意：.rs-cell 宽度 96px 是对齐精度的前提，勿加边距/边框。
+   ========================================================================== */
+
+.rs-root,
+.rs-root * { box-sizing: border-box; }
+
+.rs-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+   纸带：等宽格子依次排列，JS 只动这一层的 transform
+   -------------------------------------------------------------------------- */
+
+.rs-track {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  will-change: transform;
+  contain: layout style;
+}
+
+/* 单格 96px：格子本身不带任何边距，保证边界间距恒定、tick 计数均匀 */
+.rs-cell {
+  position: relative;
+  flex: 0 0 96px;
+  width: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rs-item {
+  width: 88px;
+  padding: 7px 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 18px -10px rgba(0, 0, 0, 0.12);
+  transition: opacity 200ms ease,
+    transform 200ms cubic-bezier(0.34, 1.35, 0.5, 1),
+    box-shadow 200ms ease,
+    border-color 200ms ease,
+    filter 240ms ease;
+}
+
+.rs-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+  background: #f5f5f7;
+  pointer-events: none;
+}
+
+.rs-name {
+  margin-top: 6px;
+  max-width: 80px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1d1d1f;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rs-id {
+  margin-top: 1px;
+  font-size: 10px;
+  color: #aeaeb2;
+  line-height: 1.3;
+}
+
+/* --------------------------------------------------------------------------
+   定格态：中项头像丝滑放大 1.12 + 金环呼吸一次，其余可见项压暗
+   （.rs-dimmed 加在 .rs-root 上，由 JS 在落地瞬间切换）
+   -------------------------------------------------------------------------- */
+
+.rs-dimmed .rs-cell:not(.rs-win) .rs-item { opacity: 0.45; }
+
+/* 全屏准线收回后（body 无 screen-line-on）：内部准线沉到纸带图层后方，
+   中奖头像盖在准线上方；压暗同时改用滤镜，半透明卡片不再透出线身 */
+body:not(.screen-line-on) .roller .rs-root.rs-dimmed { isolation: isolate; }
+body:not(.screen-line-on) .roller .rs-root.rs-dimmed .rs-line {
+  z-index: -1;
+  box-shadow: none;
+}
+body:not(.screen-line-on) .roller .rs-root.rs-dimmed .rs-halo { opacity: 0; }
+body:not(.screen-line-on) .roller .rs-dimmed .rs-cell:not(.rs-win) .rs-item {
+  opacity: 1;
+  filter: grayscale(0.85) brightness(0.8);
+}
+
+.rs-cell.rs-win { z-index: 2; }
+
+.rs-cell.rs-win .rs-item {
+  opacity: 1;
+  transform: scale(1.12);
+  border-color: #c9a04a;
+  box-shadow: 0 0 0 2px #c9a04a, 0 10px 26px -10px rgba(201, 160, 74, 0.6);
+  /* transform 走 .rs-item 既有过渡（带轻微回弹），金环由关键帧呼吸一次 */
+  animation: rsRingBreathe 900ms ease-out;
+}
+
+@keyframes rsRingBreathe {
+  0% {
+    box-shadow: 0 0 0 2px rgba(201, 160, 74, 0.9), 0 0 0 0 rgba(201, 160, 74, 0.35),
+      0 10px 26px -10px rgba(201, 160, 74, 0.6);
+  }
+  45% {
+    box-shadow: 0 0 0 2px #c9a04a, 0 0 0 10px rgba(201, 160, 74, 0),
+      0 14px 34px -10px rgba(201, 160, 74, 0.72);
+  }
+  100% {
+    box-shadow: 0 0 0 2px #c9a04a, 0 0 0 0 rgba(201, 160, 74, 0),
+      0 10px 26px -10px rgba(201, 160, 74, 0.6);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   准线与光晕、两端渐隐
+   -------------------------------------------------------------------------- */
+
+/* 极淡的白色光晕：垫在准线后面，隔开下方流动的条目 */
+.rs-halo {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* 金色准线：贯穿全高，两端略淡，由小三角收头 */
+.rs-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: linear-gradient(180deg,
+    rgba(201, 160, 74, 0.5),
+    #c9a04a 16px,
+    #c9a04a calc(100% - 16px),
+    rgba(201, 160, 74, 0.5));
+  box-shadow: 0 0 8px rgba(201, 160, 74, 0.28);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.rs-line::before,
+.rs-line::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+}
+
+/* 上端：朝下的小三角 */
+.rs-line::before {
+  top: 0;
+  border-top: 7px solid #c9a04a;
+}
+
+/* 下端：朝上的小三角 */
+.rs-line::after {
+  bottom: 0;
+  border-bottom: 7px solid #c9a04a;
+}
+
+/* 左右白色渐隐：条目像从雾里流出来、消失在雾里 */
+.rs-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 64px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.rs-fade-l {
+  left: 0;
+  background: linear-gradient(90deg, #fff 8%, rgba(255, 255, 255, 0));
+}
+
+.rs-fade-r {
+  right: 0;
+  background: linear-gradient(270deg, #fff 8%, rgba(255, 255, 255, 0));
+}

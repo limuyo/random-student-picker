@@ -1,0 +1,10 @@
+# 构建产物（通过 GitHub Release 分发）
+dist/
+
+# 开发临时产物
+tools/_contact_sheet.png
+*.log
+
+# ZCode 会话内部文件
+.zcode/
+.zcodeignore

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mood 自测页（开合动画 + 暗角氛围）</title>
+<link rel="stylesheet" href="../../css/mood.css" />
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: #fff;
+    color: #1d1d1f;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+      "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  }
+  /* 模拟主程序的白色悬浮小窗：圆角 20px、柔和投影，同时是暗角的 host
+     （position:relative；暗角 z-index:40、pointer-events:none，见 css/mood.css） */
+  .app-window {
+    width: 760px;
+    box-sizing: border-box;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    position: relative;   /* 暗角 host：必须非 static */
+    overflow: hidden;     /* 让暗角跟随圆角裁剪（.mood-vignette 已 inherit 圆角） */
+  }
+  /* 660×230 的模拟抽取面板容器：浅灰底以便看清开合。
+     容器自身不带 padding（收起态 height:0 才干净），内容放进 .sim-inner */
+  .sim-panel { width: 660px; border-radius: 12px; }
+  .sim-inner {
+    height: 230px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: #ececef;
+    border-radius: 12px;
+  }
+  .sim-slots { display: flex; gap: 14px; }
+  .sim-slot {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  }
+  .sim-line { width: 420px; height: 3px; border-radius: 2px; background: #d9a441; }
+  .sim-tip { margin: 0; font-size: 12px; color: #86868b; }
+  .bar { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #6e6e73; }
+  .bar button {
+    appearance: none;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #f5f5f7;
+    color: #1d1d1f;
+    border-radius: 10px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .bar button:active { transform: scale(0.97); }
+  #status { min-width: 320px; text-align: left; }
+</style>
+</head>
+<body>
+
+  <!-- 模拟小窗：暗角 host -->
+  <div id="app-window" class="app-window">
+    <!-- 模拟抽取面板容器：预置 .mood-panel 初始收起态 -->
+    <div id="panel" class="mood-panel sim-panel" aria-label="模拟抽取面板">
+      <div class="sim-inner">
+        <div class="sim-slots"><span class="sim-slot"></span><span class="sim-slot"></span><span class="sim-slot"></span></div>
+        <div class="sim-line"></div>
+        <p class="sim-tip">模拟抽取面板（660×230，展开 / 收起由 Mood 驱动）</p>
+      </div>
+    </div>
+    <div class="bar">
+      <button id="btn-open" type="button">展开</button>
+      <button id="btn-close" type="button">收起</button>
+      <button id="btn-vg-on" type="button">暗角开</button>
+      <button id="btn-vg-off" type="button">暗角关</button>
+      <span id="status">就绪</span>
+    </div>
+  </div>
+
+  <script src="../../js/mood.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var panel = document.getElementById('panel');
+    var host = document.getElementById('app-window');
+    var statusEl = document.getElementById('status');
+
+    /* 每次动作 console.log 当前关键状态（computed style 快照） */
+    function log(msg) {
+      console.log('[mood] ' + msg);
+      statusEl.textContent = msg;
+    }
+
+    function snap(el) {
+      var cs = getComputedStyle(el);
+      return 'height=' + cs.height + ' opacity=' + cs.opacity +
+        ' filter=' + cs.filter + ' visibility=' + cs.visibility;
+    }
+
+    var H = window.__harness = {
+      panel: panel,
+      host: host,
+      openDone: false,
+      closeDone: false,
+      vOnDone: false,
+      vOffDone: false
+    };
+
+    H.open = function () {
+      H.openDone = false;
+      log('openPanel(230) 开始 ' + snap(panel));
+      return window.Mood.openPanel(panel, 230).then(function () {
+        H.openDone = true;
+        log('openPanel(230) 完成 ' + snap(panel));
+      });
+    };
+
+    H.close = function () {
+      H.closeDone = false;
+      log('closePanel 开始 ' + snap(panel));
+      return window.Mood.closePanel(panel).then(function () {
+        H.closeDone = true;
+        log('closePanel 完成 ' + snap(panel));
+      });
+    };
+
+    H.vOn = function () {
+      H.vOnDone = false;
+      log('vignetteOn 开始');
+      return window.Mood.vignetteOn(host).then(function () {
+        H.vOnDone = true;
+        var vg = document.querySelector('.mood-vignette');
+        log('vignetteOn 完成 ' + (vg ? 'opacity=' + getComputedStyle(vg).opacity : '（无覆盖层）'));
+      });
+    };
+
+    H.vOff = function () {
+      H.vOffDone = false;
+      log('vignetteOff 开始');
+      return window.Mood.vignetteOff(host).then(function () {
+        H.vOffDone = true;
+        log('vignetteOff 完成 ' + (document.querySelector('.mood-vignette') ? '（仍存在）' : '（DOM 已移除）'));
+      });
+    };
+
+    document.getElementById('btn-open').addEventListener('click', H.open);
+    document.getElementById('btn-close').addEventListener('click', H.close);
+    document.getElementById('btn-vg-on').addEventListener('click', H.vOn);
+    document.getElementById('btn-vg-off').addEventListener('click', H.vOff);
+
+    log('初始 ' + snap(panel));
+  })();
+  </script>
+</body>
+</html>

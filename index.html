@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>点名器 · 班级随机点名</title>
+<meta name="description" content="纯前端班级随机点名网页：粘贴名单，单人开箱式滚动抽取，多人老虎机滚轮抽取。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/roller-strip.css">
+<link rel="stylesheet" href="css/roller-slots.css">
+<link rel="stylesheet" href="css/mood.css">
+</head>
+<body>
+
+<div class="app-window">
+
+  <!-- ============ 主界面：抽号 ============ -->
+  <section id="page-roll" class="page page-roll">
+    <header class="topbar">
+      <div class="topbar-side">
+        <span class="logo gold-text">点名器</span>
+        <span id="roster-summary" class="summary"></span>
+      </div>
+      <div class="topbar-side">
+        <button type="button" id="btn-history" class="btn small">历史记录</button>
+        <button type="button" id="btn-setup" class="btn small">名单与设置</button>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="seg" id="mode-seg" role="group" aria-label="抽取模式">
+        <button type="button" data-mode="single" class="on">单人</button>
+        <button type="button" data-mode="multi">多人</button>
+      </div>
+      <label class="select-label" id="count-label" hidden>每次
+        <select id="opt-count">
+          <option value="2">2</option><option value="3">3</option>
+          <option value="4">4</option><option value="5">5</option>
+        </select>人
+      </label>
+      <label class="switch" title="开启后，点过的同学不再被抽中">
+        <input type="checkbox" id="opt-norepeat">
+        <span class="switch-ui"></span>不重复
+      </label>
+      <label class="switch" title="开关抽取音效">
+        <input type="checkbox" id="opt-sound" checked>
+        <span class="switch-ui"></span>音效
+      </label>
+      <button type="button" id="btn-reset" class="btn small">重置本轮</button>
+    </div>
+
+    <main class="roller-wrap">
+      <div id="roller" class="roller" data-height="236"></div>
+      <button type="button" id="btn-collapse" class="panel-close" hidden title="收起抽取面板">收起</button>
+      <div id="roller-empty" class="roller-empty" hidden>
+        <p>还没有名单，先去导入同学吧</p>
+        <button type="button" id="btn-empty-import" class="btn small">去导入名单</button>
+      </div>
+      <div id="tray" class="tray"></div>
+    </main>
+
+    <footer class="dock">
+      <button type="button" id="btn-roll" class="btn primary xl">开始点名</button>
+    </footer>
+  </section>
+
+  <!-- ============ 名单与设置（覆盖整窗） ============ -->
+  <section id="page-setup" class="page-setup" hidden>
+    <header class="setup-head">
+      <h2>名单与设置</h2>
+      <button type="button" id="btn-setup-close" class="icon-btn" aria-label="关闭名单与设置">✕</button>
+    </header>
+    <div class="setup-body">
+      <section class="setup-import panel">
+        <div class="field">
+          <label class="field-label" for="roster-text">
+            名单内容
+            <span class="field-hint">每行一条 <b>学号,姓名</b>，自动识别逗号、中文逗号、Tab、分号、空格</span>
+          </label>
+          <textarea id="roster-text" rows="7" spellcheck="false"
+            placeholder="2024001,张三&#10;2024002,李四&#10;2024003,王五"></textarea>
+        </div>
+        <div class="btn-row">
+          <label class="btn">
+            选择 .txt / .csv 文件
+            <input type="file" id="roster-file" accept=".txt,.csv,text/plain,text/csv" hidden>
+          </label>
+          <button type="button" id="btn-example" class="btn">下载示例名单</button>
+          <span class="hint">从 Excel 复制两列直接粘贴也可以</span>
+        </div>
+        <div id="preview" class="preview" hidden>
+          <p class="preview-head">
+            <span id="preview-count" class="ok"></span>
+            <span id="preview-errors" class="bad"></span>
+          </p>
+          <ul id="preview-list" class="chips"></ul>
+        </div>
+        <div class="btn-row center">
+          <button type="button" id="btn-import" class="btn primary" disabled>保存名单</button>
+        </div>
+      </section>
+
+      <section class="setup-wall">
+        <div class="setup-wall-head">
+          <h3>头像墙</h3>
+          <span id="wall-summary" class="hint">每次点名会随机换一批头像</span>
+        </div>
+        <div id="wall" class="wall"></div>
+        <p id="wall-empty" class="wall-empty" hidden>保存名单后，全班头像会出现在这里</p>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============ 历史记录抽屉（窗口内） ============ -->
+  <div id="drawer-mask" class="drawer-mask" hidden></div>
+  <aside id="history-panel" class="drawer" hidden>
+    <header class="drawer-head">
+      <h2>点名历史</h2>
+      <button type="button" id="btn-history-clear" class="btn small">清空</button>
+      <button type="button" id="btn-history-close" class="icon-btn" aria-label="关闭历史记录">✕</button>
+    </header>
+    <ul id="history-list" class="history-list"></ul>
+    <p id="history-empty" class="drawer-empty">还没有记录，点一次名试试</p>
+  </aside>
+
+  <!-- ============ 确认对话框（窗口内） ============ -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h3 id="modal-title"></h3>
+      <p id="modal-body"></p>
+      <div class="modal-btns">
+        <button type="button" id="modal-cancel" class="btn">取消</button>
+        <button type="button" id="modal-ok" class="btn primary">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+</div><!-- /app-window -->
+
+<!-- 全屏金色准线（单人抽取时贯穿屏幕上下，随面板展开生长） -->
+<div id="screen-line" class="screen-line" hidden></div>
+
+<canvas id="confetti" hidden></canvas>
+
+<script src="js/avatars.js"></script>
+<script src="js/roster.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/wall.js"></script>
+<script src="js/roller-strip.js"></script>
+<script src="js/roller-slots.js"></script>
+<script src="js/mood.js"></script>
+<script src="js/history.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

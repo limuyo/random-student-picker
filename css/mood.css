@@ -1,0 +1,71 @@
+/* ==========================================================================
+   开合动画 + 暗角氛围组件（Mood）· 样式
+   配合 js/mood.js 使用，所有类名带 mood- 前缀，不污染主样式。
+
+   .mood-panel        面板容器的「初始收起态」兜底：主程序给容器预置此类，
+                      首帧即为收起样子；Mood.openPanel / closePanel 一旦调用，
+                      组件全以内联样式接管。注意：容器自身不要带 padding /
+                      border（height:0 时会残留占位），内边距放进内层包裹元素。
+   .mood-vignette     暗角覆盖层：由 JS 创建挂在 host 内，z-index 写死 40，
+                      pointer-events:none 不挡点击，border-radius:inherit
+                      自动跟随 host 圆角。
+   ========================================================================== */
+
+/* 面板容器初始收起态（transform / 其余参数位与 js/mood.js 的收起终态一致） */
+.mood-panel {
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-10px);
+  /* 不写 transition：面板动画由 JS rAF 逐帧驱动，CSS 过渡会打架 */
+}
+
+/* 暗角覆盖层：inset:0 铺满 host，淡入默认 350ms（淡出 400ms 由 JS 内联改写） */
+.mood-vignette {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;            /* 写死：暗角压在面板内容之上，营造沉浸氛围 */
+  overflow: hidden;
+  pointer-events: none;   /* 纯氛围层，不拦截任何交互 */
+  border-radius: inherit; /* 跟随 host 的圆角（host 无圆角时为 0，无副作用） */
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+/* 第一层：径向暗角 —— 中心约 55% 完全透明，向屏幕四角加深到 rgba(8,10,18,0.55)。
+   挂在 body 上时即「从全屏四角压进来」的效果：小窗居于中心的透明区，四角最深 */
+.mood-vignette-radial {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: radial-gradient(ellipse at 50% 50%,
+    rgba(8, 10, 18, 0) 0%,
+    rgba(8, 10, 18, 0) 55%,
+    rgba(8, 10, 18, 0.55) 100%);
+}
+
+/* 第二层：线性「电影感」—— 上下两条压暗带（比四角稍浅） */
+.mood-vignette-film {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(180deg,
+    rgba(8, 10, 18, 0.28) 0%,
+    rgba(8, 10, 18, 0) 30%,
+    rgba(8, 10, 18, 0) 70%,
+    rgba(8, 10, 18, 0.28) 100%);
+}
+
+/* 系统开启「减少动态效果」时：CSS 侧关掉过渡（JS 侧同样会跳过动画直接置终态） */
+@media (prefers-reduced-motion: reduce) {
+  .mood-vignette { transition: none; }
+}

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<!-- 音效引擎无头验证页：调用全部音色并用 AnalyserNode 证明有非零输出。
+     两阶段：1) 密集触发全部音色验证无异常/running/非零输出；
+             2) 各音色隔离播放，测各自峰值振幅。
+     用法：直接 file:// 打开，或经 http 服务访问；结果写入 DOM、console 与 document.title -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>audio-harness</title>
+<style>
+  body { font-family: Consolas, monospace; font-size: 13px; margin: 16px; }
+  #result { white-space: pre-wrap; border: 1px solid #999; padding: 10px; }
+  .pass { color: #070; }
+  .fail { color: #c00; }
+</style>
+</head>
+<body>
+<div id="result">running...</div>
+<script>
+/* 在 audio.js 加载前挂钩 AudioNode.connect：凡连到 destination 的节点，
+   同步旁路一份到 AnalyserNode，用于无头环境证明非零输出 */
+(function () {
+  var analyser = null;
+  var tapCtx = null;
+  var origConnect = AudioNode.prototype.connect;
+  AudioNode.prototype.connect = function (dest) {
+    var r = origConnect.apply(this, arguments);
+    try {
+      if (dest && typeof AudioDestinationNode !== 'undefined' && dest instanceof AudioDestinationNode) {
+        if (!analyser) {
+          tapCtx = dest.context;
+          analyser = tapCtx.createAnalyser();
+          analyser.fftSize = 2048;
+        }
+        origConnect.call(this, analyser);
+      }
+    } catch (e) { /* 挂钩失败不影响原逻辑 */ }
+    return r;
+  };
+  window.__getAnalyser = function () { return analyser; };
+  window.__getCtx = function () { return tapCtx; };
+})();
+</script>
+<script src="../../js/audio.js"></script>
+<script>
+(function () {
+  'use strict';
+  var errors = [];
+  window.addEventListener('error', function (e) {
+    errors.push(String(e.message || e));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    errors.push('unhandledrejection: ' + String(e.reason));
+  });
+
+  var peak = 0;          /* 当前采样窗口内的峰值振幅 */
+  var analyser = null;
+  var buf = null;
+
+  /* 持续采样：每帧从 AnalyserNode 读时域数据并累计峰值 */
+  function startSampling() {
+    function frame() {
+      if (!analyser) {
+        analyser = window.__getAnalyser();
+        if (analyser) buf = new Float32Array(analyser.fftSize);
+      }
+      if (analyser && buf) {
+        analyser.getFloatTimeDomainData(buf);
+        for (var j = 0; j < buf.length; j++) {
+          var a = Math.abs(buf[j]);
+          if (a > peak) peak = a;
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function run() {
+    var out = [];
+    try {
+      var ctx = window.__getCtx();
+      Sfx.setEnabled(true);
+      Sfx.unlock();
+      ctx = window.__getCtx() || ctx;
+      startSampling();
+
+      /* 阶段 1：全部音色各若干次 + 密集重叠触发 */
+      Sfx.start();
+      Sfx.tick(1); Sfx.tick(0.85); Sfx.tick(0.5); Sfx.tick(0.2); Sfx.tick(0);
+      Sfx.tick();            /* 无参：按中速 */
+      Sfx.land();
+      Sfx.reveal();
+      for (var i = 0; i < 8; i++) {
+        Sfx.tick(i % 5 / 4);
+        if (i % 3 === 0) Sfx.land();
+      }
+      Sfx.start();
+
+      /* 阶段 2：各音色隔离播放，测各自峰值（先等重叠声散尽） */
+      setTimeout(function () {
+        var items = [
+          ['start',   function () { Sfx.start(); },   750],
+          ['tick(1)', function () { Sfx.tick(1); },   220],
+          ['tick(0)', function () { Sfx.tick(0); },   260],
+          ['tick()',  function () { Sfx.tick(); },    220],
+          ['land',    function () { Sfx.land(); },    700],
+          ['reveal',  function () { Sfx.reveal(); }, 1450]
+        ];
+        var peaks = {};
+        var idx = 0;
+        function next() {
+          if (idx >= items.length) { finish(peaks); return; }
+          peak = 0;
+          items[idx][1]();
+          setTimeout(function () {
+            peaks[items[idx][0]] = +peak.toFixed(4);
+            idx++;
+            next();
+          }, items[idx][2]);
+        }
+        next();
+      }, 1600);
+    } catch (e) {
+      document.getElementById('result').textContent = 'EXCEPTION: ' + (e && e.stack || e);
+      document.title = 'AUDIO-HARNESS-FAIL';
+      window.__harness = { ok: false, errors: [String(e)] };
+    }
+  }
+
+  function finish(peaks) {
+    var out = [];
+    var ctx = window.__getCtx();
+    var ok = errors.length === 0
+      && ctx && ctx.state === 'running'
+      && analyser
+      && peaks['start'] > 0.005 && peaks['start'] < 0.9
+      && peaks['tick(1)'] > 0.005 && peaks['tick(1)'] < 0.9
+      && peaks['tick(0)'] > 0.005 && peaks['tick(0)'] < 0.9
+      && peaks['tick()'] > 0.005 && peaks['tick()'] < 0.9
+      && peaks['land'] > 0.005 && peaks['land'] < 0.9
+      && peaks['reveal'] > 0.005 && peaks['reveal'] < 0.9;
+    out.push('errors=' + JSON.stringify(errors));
+    out.push('ctxState=' + (ctx ? ctx.state : 'null'));
+    out.push('ctxTime=' + (ctx ? ctx.currentTime.toFixed(3) : 'n/a'));
+    out.push('analyser=' + (analyser ? 'yes' : 'no'));
+    Object.keys(peaks).forEach(function (k) {
+      out.push('peak[' + k + ']=' + peaks[k]);
+    });
+    out.push(ok ? 'RESULT=PASS' : 'RESULT=FAIL');
+    var el = document.getElementById('result');
+    el.textContent = out.join('\n');
+    el.className = ok ? 'pass' : 'fail';
+    document.title = ok ? 'AUDIO-HARNESS-PASS' : 'AUDIO-HARNESS-FAIL';
+    window.__harness = { ok: ok, errors: errors, state: ctx && ctx.state,
+      ctxTime: ctx && ctx.currentTime, peaks: peaks, lines: out };
+  }
+
+  if (document.readyState === 'complete') {
+    setTimeout(run, 50);
+  } else {
+    window.addEventListener('load', function () { setTimeout(run, 50); });
+  }
+})();
+</script>
+</body>
+</html>

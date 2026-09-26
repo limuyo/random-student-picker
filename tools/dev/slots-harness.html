@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SlotRoller 自测 · 老虎机滚轮</title>
+<!-- 组件样式与本页引用的组件脚本均使用相对路径，双击 file:// 直接可跑 -->
+<link rel="stylesheet" href="../../css/roller-slots.css">
+<style>
+  /* 仅自测页使用的页面样式（组件样式全部在 roller-slots.css） */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #fff;
+    background-image: radial-gradient(720px 460px at 50% 42%, rgba(213, 168, 68, 0.08), transparent 70%);
+    color: #1d1d1f;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+      "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .panel {
+    width: 740px;
+    padding: 26px 28px 22px;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px -30px rgba(40, 32, 10, 0.25);
+  }
+  h1 { margin: 0 0 4px; font-size: 17px; }
+  .desc { margin: 0 0 18px; color: #6e6e73; font-size: 12.5px; }
+
+  /* 组件容器：典型调用尺寸 660×230 */
+  .slot-box {
+    position: relative;
+    width: 660px;
+    height: 230px;
+    margin: 0 auto;
+  }
+  .ops {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .ops button {
+    appearance: none;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(120, 120, 128, 0.08);
+    color: #1d1d1f;
+    border-radius: 9px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .ops button:hover { background: rgba(120, 120, 128, 0.14); }
+  .ops label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #6e6e73;
+    font-size: 12.5px;
+  }
+  .ops input[type="number"] {
+    width: 64px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 7px;
+    padding: 4px 6px;
+    font: inherit;
+    color: #1d1d1f;
+  }
+  #status {
+    margin: 14px 0 0;
+    text-align: center;
+    color: #6e6e73;
+    font-size: 12.5px;
+    min-height: 18px;
+  }
+</style>
+</head>
+<body>
+
+<main class="panel">
+  <h1>老虎机滚轮 · 自测</h1>
+  <p class="desc">12 个假候选循环上轮；切换人数重跑，观察错峰定格与赔付线对齐。结果见控制台。</p>
+
+  <div id="slot" class="slot-box"></div>
+
+  <div class="ops">
+    <button type="button" data-n="2">2 人</button>
+    <button type="button" data-n="3">3 人</button>
+    <button type="button" data-n="5">5 人</button>
+    <label><input type="checkbox" id="opt-reduced"> reduced 直出</label>
+    <label>durationMs <input type="number" id="opt-dur" value="1800" min="300" step="100"></label>
+  </div>
+
+  <p id="status">正在首跑…</p>
+</main>
+
+<script src="../../js/roller-slots.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* 12 个假候选：头像走仓库自带素材，数据不写进组件 */
+  var NAMES = ['张伟', '李娜', '王芳', '刘洋', '陈静', '杨帆', '赵磊', '黄敏', '周杰', '吴倩', '徐强', '孙丽'];
+  var ITEMS = [];
+  for (var i = 1; i <= 12; i++) {
+    ITEMS.push({
+      key: 'k' + i,
+      name: NAMES[i - 1],
+      id: '2024' + ('00' + i).slice(-3),
+      avatar: '../../assets/avatars/hero_' + ('00' + i).slice(-3) + '.png'
+    });
+  }
+
+  var statusEl = document.getElementById('status');
+  var roller = new SlotRoller(document.getElementById('slot'));
+  window.__roller = roller; /* 供自动化脚本检查内部状态 */
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function pickWinners(n) {
+    return shuffle(ITEMS.slice()).slice(0, n).map(function (s) { return s.key; });
+  }
+
+  var running = false;
+  function run(n) {
+    if (running) return;
+    running = true;
+    var winners = pickWinners(n);
+    var reduced = document.getElementById('opt-reduced').checked;
+    var durationMs = Number(document.getElementById('opt-dur').value) || 1800;
+    statusEl.textContent = '滚动中（' + n + ' 人' + (reduced ? ' · reduced' : '') + '）：' + winners.join(' / ');
+    var t0 = performance.now();
+
+    roller.roll({
+      items: ITEMS,
+      winners: winners,
+      reduced: reduced,
+      durationMs: durationMs,
+      onTick: function (reelIndex) {
+        /* 高频回调：真实接入点可在此打点音效 */
+      },
+      onLand: function (item, index) {
+        console.log('land #' + index, item.key, Math.round(performance.now() - t0) + 'ms');
+      }
+    }).then(function () {
+      running = false;
+      var ms = Math.round(performance.now() - t0);
+      console.log('HARNESS OK', winners);
+      window.__HARNESS = { ok: true, winners: winners, ms: ms };
+      statusEl.textContent = '完成：' + winners.join(' / ') + '（' + ms + 'ms）';
+    });
+  }
+
+  var btns = document.querySelectorAll('[data-n]');
+  for (var b = 0; b < btns.length; b++) {
+    (function (btn) {
+      btn.addEventListener('click', function () {
+        run(Number(btn.getAttribute('data-n')));
+      });
+    })(btns[b]);
+  }
+
+  run(3); /* 默认 3 人自动跑一次 */
+})();
+</script>
+</body>
+</html>

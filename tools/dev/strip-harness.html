@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>StripRoller 自测页（CS:GO 开箱式纸带）</title>
+<link rel="stylesheet" href="../../css/roller-strip.css" />
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: #fff;
+    color: #1d1d1f;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+      "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  }
+  /* 660×230 的调用方容器：白卡片 + 发丝边框，贴近主程序里的真实容器 */
+  .strip-box {
+    width: 660px;
+    height: 230px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px -24px rgba(40, 32, 10, 0.18);
+  }
+  .bar { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #6e6e73; }
+  .bar button {
+    appearance: none;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #f5f5f7;
+    color: #1d1d1f;
+    border-radius: 10px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .bar button:active { transform: scale(0.97); }
+</style>
+</head>
+<body>
+
+  <div id="strip-box" class="strip-box" aria-label="点名纸带"></div>
+  <div class="bar">
+    <button id="reroll" type="button">再抽一次</button>
+    <span id="result">准备就绪</span>
+  </div>
+
+  <script src="../../js/roller-strip.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var box = document.getElementById('strip-box');
+    var resultEl = document.getElementById('result');
+    var roller = new StripRoller(box);
+
+    /* 12 个假候选，头像用仓库里真实存在的英雄头像 */
+    var NAMES = ['张伟', '王芳', '李娜', '刘洋', '陈静', '杨帆',
+                 '赵磊', '黄鹂', '周杰', '吴优', '徐来', '孙悦'];
+    var items = [];
+    for (var i = 0; i < 12; i++) {
+      var n = String(i + 1);
+      items.push({
+        key: 'stu-' + n,
+        name: NAMES[i],
+        id: '2024' + (1001 + i),
+        avatar: '../../assets/avatars/hero_' + (i < 9 ? '00' : '0') + n + '.png'
+      });
+    }
+
+    var runs = 0;
+
+    function run() {
+      runs++;
+      var winner = items[Math.floor(Math.random() * items.length)];
+      resultEl.textContent = '抽取中…';
+      roller.roll({
+        items: items,
+        winners: [winner.key],
+        reduced: false,
+        onTick: function () { /* 高频回调：调用方自行节流，harness 留空 */ },
+        onLand: function (item) { resultEl.textContent = '定格：' + item.name; }
+      }).then(function (item) {
+        resultEl.textContent = '中奖：' + item.name + '（' + item.id + '）';
+        if (window.console) console.log('HARNESS OK', item.key, '第' + runs + '次');
+        window.__harnessDone = true;
+        window.__harnessKey = item.key;
+      });
+    }
+
+    document.getElementById('reroll').addEventListener('click', function () {
+      window.__harnessDone = false;
+      run();
+    });
+
+    /* 页面加载后自动跑一次 */
+    window.addEventListener('load', function () { setTimeout(run, 60); });
+
+    /* 供无头浏览器自检使用 */
+    window.__harness = { roller: roller, items: items, run: run };
+  })();
+  </script>
+</body>
+</html>
